@@ -1,0 +1,16 @@
+##
+# This file is part of the IVMS Online.
+#
+# @copyright 2024 © by Rafał Wrzeszcz - Wrzasq.pl.
+##
+
+version: "0.2"
+
+phases:
+    build:
+        commands:
+            - "make test-integration"
+
+cache:
+    paths:
+        - "/root/.cargo/**/*"

@@ -1,0 +1,18 @@
+##
+# This file is part of the IVMS Online.
+#
+# @copyright 2024 © by Rafał Wrzeszcz - Wrzasq.pl.
+##
+
+version: 2
+updates:
+    -
+        package-ecosystem: "cargo"
+        directory: "/"
+        schedule:
+            interval: "daily"
+    -
+        package-ecosystem: "github-actions"
+        directory: "/"
+        schedule:
+            interval: "daily"
