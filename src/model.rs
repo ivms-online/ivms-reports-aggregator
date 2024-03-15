@@ -95,6 +95,7 @@ mod tests {
             report_name: REPORT_NAME.into(),
             field_name: FIELD_NAME.into(),
             value: "".to_string(),
+            label: "".to_string(),
         };
         let key = report.build_key();
 

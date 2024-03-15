@@ -18,7 +18,6 @@ mod tests {
     use aws_smithy_runtime_api::client::behavior_version::BehaviorVersion;
     use aws_smithy_runtime_api::client::orchestrator::HttpResponse;
     use aws_smithy_runtime_api::client::result::SdkError;
-    use chrono::{FixedOffset, TimeZone, Utc};
     use std::env::var;
     use std::future::join;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -43,8 +42,8 @@ mod tests {
     // reports
     static REPORT_NAME_0: &str = "2024.week2";
     static REPORT_NAME_1: &str = "2023.month6";
-    static FIELD_NAME_0: &str = "warnings_count";
-    static FIELD_NAME_1: &str = "total_fuel";
+    static FIELD_NAME_0: &str = "total_fuel";
+    static FIELD_NAME_1: &str = "warnings_count";
 
     impl AsyncTestContext for DynamoDbTestContext {
         async fn setup() -> DynamoDbTestContext {
@@ -126,9 +125,9 @@ mod tests {
             };
 
             let (res1, res2, res3) = join!(
-                context.create_record(&ID_0, &ID_1, INVENTORY_TYPE_0, INVENTORY_ID_0, "100"),
-                context.create_record(&ID_0, &ID_1, INVENTORY_TYPE_0, INVENTORY_ID_1, "101"),
-                context.create_record(&ID_0, &ID_2, INVENTORY_TYPE_1, INVENTORY_ID_0, "102"),
+                context.create_record(&ID_0, &ID_1, REPORT_NAME_0, FIELD_NAME_0, "100", "Test_Count"),
+                context.create_record(&ID_0, &ID_1, REPORT_NAME_0, FIELD_NAME_1, "101", "Test_Count"),
+                context.create_record(&ID_0, &ID_2, REPORT_NAME_1, FIELD_NAME_0, "102", "Test_Count"),
             )
             .await;
 
@@ -159,6 +158,7 @@ mod tests {
                 report_name: REPORT_NAME_1.to_string(),
                 field_name: FIELD_NAME_1.to_string(),
                 value: "123".into(),
+                label: "Test_Count".into(),
             })
             .await?;
 
@@ -171,7 +171,8 @@ mod tests {
             .send()
             .await
             .unwrap();
-        assert_eq!("123", report.item.unwrap()["value"].as_s().unwrap());
+        assert_eq!("123", report.item.as_ref().unwrap()["value"].as_s().unwrap());
+        assert_eq!("Test_Count", report.item.as_ref().unwrap()["label"].as_s().unwrap());
 
         Ok(())
     }
@@ -299,6 +300,7 @@ mod tests {
             report_name: &str,
             field_name: &str,
             value: &str,
+            label: &str,
         ) -> Result<PutItemOutput, SdkError<PutItemError, HttpResponse>> {
             self.client
                 .put_item()
@@ -313,6 +315,7 @@ mod tests {
                 .item("reportName", S(report_name.into()))
                 .item("fieldName", S(field_name.into()))
                 .item("value", S(value.to_string()))
+                .item("label", S(label.to_string()))
                 .send()
                 .await
         }
