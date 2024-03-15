@@ -1,0 +1,8 @@
+{
+    "Tags": {
+        "wrzasqpl:product:id": "online.ivms",
+        "wrzasqpl:product:version": "v1",
+        "wrzasqpl:project:stage": "staging",
+        "wrzasqpl:component:id": "ivms-reports-aggregator"
+    }
+}

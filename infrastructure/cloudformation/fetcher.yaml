@@ -1,0 +1,64 @@
+##
+# This file is part of the IVMS Online.
+#
+# @copyright 2024 © by Rafał Wrzeszcz - Wrzasq.pl.
+##
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+Transform:
+    - "WrzasqPlCformMacro"
+    - "AWS::Serverless-2016-10-31"
+
+Parameters:
+    ProjectKey:
+        Type: "String"
+
+    ProjectVersion:
+        Type: "String"
+
+    ComponentId:
+        Type: "String"
+
+    ReleaseVersion:
+        Type: "String"
+
+    ReportsTableName:
+        Type: "String"
+
+    ReportsTableArn:
+        Type: "String"
+
+Resources:
+    Fetcher:
+        Type: "AWS::Serverless::Function"
+        Properties:
+            Runtime: "provided.al2023"
+            CodeUri:
+                Bucket: "chilldev-repository"
+                Key: !Sub "sam/ivms-online/ivms-reports-aggregator/${ReleaseVersion}/ivms-reports-aggregator.zip"
+            Handler: "reports:fetch"
+            MemorySize: 384
+            Environment:
+                Variables:
+                    RUST_LOG: "info"
+                    REPORTS_TABLE: !Ref "ReportsTableName"
+            Timeout: 30
+            Tracing: "Active"
+            Policies:
+                -
+                    Version: "2012-10-17"
+                    Statement:
+                        -
+                            Action:
+                                - "dynamodb:Query"
+                            Effect: "Allow"
+                            Resource:
+                                - !Ref "ReportsTableArn"
+            LogsRetentionInDays: 14
+
+Outputs:
+    LambdaArn:
+        Value: !GetAtt "Fetcher.Arn"
+        Export:
+            Name: !Sub "${ProjectKey}:${ProjectVersion}:${ComponentId}:FetcherLambda:Arn"

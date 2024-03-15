@@ -1,0 +1,45 @@
+##
+# This file is part of the IVMS Online.
+#
+# @copyright 2024 © by Rafał Wrzeszcz - Wrzasq.pl.
+##
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+Transform:
+    - "WrzasqPlCformMacro"
+
+Resources:
+    ReportsTable:
+        Type: "AWS::DynamoDB::Table"
+        DeletionPolicy: "Retain"
+        Properties:
+            KeySchema:
+                -
+                    AttributeName: "customerAndVesselId"
+                    KeyType: "HASH"
+                -
+                    AttributeName: "reportKey"
+                    KeyType: "RANGE"
+            GlobalSecondaryIndexes:
+                -
+                    IndexName: "vesselReports"
+                    KeySchema:
+                        -
+                            AttributeName: "customerAndVesselId"
+                            KeyType: "HASH"
+                        -
+                            AttributeName: "reportName"
+                            KeyType: "RANGE"
+                    Projection:
+                        ProjectionType: "ALL"
+            PointInTimeRecoverySpecification:
+                PointInTimeRecoveryEnabled: true
+            BillingMode: "PAY_PER_REQUEST"
+
+Outputs:
+    ReportsTableName:
+        Value: !Ref "ReportsTable"
+
+    ReportsTableArn:
+        Value: !GetAtt "ReportsTable.Arn"

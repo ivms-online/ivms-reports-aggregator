@@ -17,5 +17,5 @@ on:
 
 jobs:
     build:
-        uses: "ivms-online/.github/.github/workflows/rust-build.yaml@ec184384a38663e2cd52aebb01f1886c6399bb7a"
+        uses: "ivms-online/.github/.github/workflows/rust-build.yaml@2b6f20a6661cfd0f125851504817920cc31bf3ce"
         secrets: "inherit"

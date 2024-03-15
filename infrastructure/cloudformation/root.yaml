@@ -1,0 +1,249 @@
+##
+# This file is part of the IVMS Online.
+#
+# @copyright 2024 © by Rafał Wrzeszcz - Wrzasq.pl.
+##
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+Transform:
+    - "WrzasqPlCformMacro"
+
+Parameters:
+    ProjectKey:
+        Type: "String"
+        Default: "online-ivms"
+
+    ProjectVersion:
+        Type: "String"
+        Default: "v1"
+
+    ComponentId:
+        Type: "String"
+        Default: "ivms-reports-aggregator"
+
+    EnvironmentName:
+        Type: "String"
+
+    HasIntegrationTestStage:
+        Type: "String"
+        Default: "false"
+        AllowedValues:
+            - "true"
+            - "false"
+
+    HasNextStage:
+        Type: "String"
+        Default: "false"
+        AllowedValues:
+            - "true"
+            - "false"
+
+Conditions:
+    HasIntegrationTestStage:
+        "Fn::Equals":
+            - !Ref "HasIntegrationTestStage"
+            - "true"
+
+    HasNextStage:
+        "Fn::Equals":
+            - !Ref "HasNextStage"
+            - "true"
+
+Resources:
+    # CodeBuild
+
+    PipelineRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            AssumeRolePolicyDocument:
+                Statement:
+                    -
+                        Action:
+                            - "sts:AssumeRole"
+                        Effect: "Allow"
+                        Principal:
+                            Service:
+                                - "cloudformation.amazonaws.com"
+                                - "codepipeline.amazonaws.com"
+            ManagedPolicyArns:
+                - !ImportValue "root:v1:policy:repositories-read-v2"
+                - !ImportValue "root:v1:codepipeline:artifacts-policy:arn"
+                -
+                    "Fn::ImportValue": !Sub "${ProjectKey}:${ProjectVersion}:infrastructure:pipeline-base-policy:arn"
+            Policies:
+                -
+                    Fn::If:
+                        - "HasIntegrationTestStage"
+                        -
+                            PolicyName: "AllowRunningCodeBuild"
+                            PolicyDocument:
+                                Version: "2012-10-17"
+                                Statement:
+                                    -
+                                        Action:
+                                            - "codebuild:BatchGetBuilds"
+                                            - "codebuild:StartBuild"
+                                        Effect: "Allow"
+                                        Resource:
+                                            - "*"
+                        - !Ref "AWS::NoValue"
+
+    DeployPipeline:
+        Type: "AWS::CodePipeline::Pipeline"
+        Properties:
+            RoleArn: !GetAtt "PipelineRole.Arn"
+            ArtifactStore: !ImportValue "root:v1:codepipeline:artifacts-bucket:name"
+            RestartExecutionOnUpdate: true
+            Stages:
+                -
+                    Name: "Checkout"
+                    Actions:
+                        Checkout:
+                            ActionType: "S3Source"
+                            Bucket: !ImportValue "root:v1:codepipeline:artifacts-bucket:name"
+                            ObjectKey: !Sub "${ComponentId}/checkout.zip"
+                            OutputArtifacts:
+                                - "checkout"
+                -
+                    Name: "Bootstrap"
+                    Actions:
+                        Infrastructure:
+                            ActionType: "CloudFormationDeploy"
+                            Configuration:
+                                StackName: !Ref "AWS::StackName"
+                                RoleArn:
+                                    "Fn::ImportValue": !Sub "${ProjectKey}:${ProjectVersion}:infrastructure:infrastructure-role:arn"
+                                TemplatePath: "checkout::infrastructure/cloudformation/root.yaml"
+                                TemplateConfiguration: !Sub "checkout::infrastructure/cloudformation/config-${EnvironmentName}.json"
+                            Parameters:
+                                ProjectKey: !Ref "ProjectKey"
+                                ProjectVersion: !Ref "ProjectVersion"
+                                ComponentId: !Ref "ComponentId"
+                                EnvironmentName: !Ref "EnvironmentName"
+                                HasNextStage: !Ref "HasNextStage"
+                                HasIntegrationTestStage: !Ref "HasIntegrationTestStage"
+                -
+                    Name: "Deploy"
+                    Actions:
+                        Database:
+                            ActionType: "CloudFormationDeploy"
+                            Configuration:
+                                StackName: !Sub "${AWS::StackName}-db"
+                                RoleArn:
+                                    "Fn::ImportValue": !Sub "${ProjectKey}:${ProjectVersion}:infrastructure:infrastructure-role:arn"
+                                TemplatePath: "checkout::infrastructure/cloudformation/db.yaml"
+                                TemplateConfiguration: !Sub "checkout::infrastructure/cloudformation/config-${EnvironmentName}.json"
+                        Fetcher:
+                            ActionType: "CloudFormationDeploy"
+                            Configuration:
+                                StackName: !Sub "${AWS::StackName}-fetcher"
+                                RoleArn:
+                                    "Fn::ImportValue": !Sub "${ProjectKey}:${ProjectVersion}:infrastructure:infrastructure-role:arn"
+                                TemplatePath: "checkout::infrastructure/cloudformation/fetcher.yaml"
+                                TemplateConfiguration: !Sub "checkout::infrastructure/cloudformation/config-${EnvironmentName}.json"
+                            Parameters:
+                                ProjectKey: !Ref "ProjectKey"
+                                ProjectVersion: !Ref "ProjectVersion"
+                                ComponentId: !Ref "ComponentId"
+                                ReleaseVersion:
+                                    "Fn::GetParam":
+                                        - "checkout"
+                                        - "build-info.json"
+                                        - "version"
+                                ReportsTableName: "#{Deploy:Database.ReportsTableName}"
+                                ReportsTableArn: "#{Deploy:Database.ReportsTableArn}"
+                        Loader:
+                            ActionType: "CloudFormationDeploy"
+                            Configuration:
+                                StackName: !Sub "${AWS::StackName}-loader"
+                                RoleArn:
+                                    "Fn::ImportValue": !Sub "${ProjectKey}:${ProjectVersion}:infrastructure:infrastructure-role:arn"
+                                TemplatePath: "checkout::infrastructure/cloudformation/loader.yaml"
+                                TemplateConfiguration: !Sub "checkout::infrastructure/cloudformation/config-${EnvironmentName}.json"
+                            Parameters:
+                                ProjectKey: !Ref "ProjectKey"
+                                ProjectVersion: !Ref "ProjectVersion"
+                                ReleaseVersion:
+                                    "Fn::GetParam":
+                                        - "checkout"
+                                        - "build-info.json"
+                                        - "version"
+                                ReportsTableName: "#{Deploy:Database.ReportsTableName}"
+                                ReportsTableArn: "#{Deploy:Database.ReportsTableArn}"
+                -
+                    Name: "Integration"
+                    Condition: "HasIntegrationTestStage"
+                    Actions:
+                        Provision:
+                            ActionType: "CloudFormationDeploy"
+                            Configuration:
+                                StackName: !Sub "${AWS::StackName}-integration-tests"
+                                RoleArn:
+                                    "Fn::ImportValue": !Sub "${ProjectKey}:${ProjectVersion}:infrastructure:infrastructure-role:arn"
+                                TemplatePath: "checkout::infrastructure/cloudformation/integration-tests.yaml"
+                                TemplateConfiguration: !Sub "checkout::infrastructure/cloudformation/config-${EnvironmentName}.json"
+                            Parameters:
+                                ProjectKey: !Ref "ProjectKey"
+                                ProjectVersion: !Ref "ProjectVersion"
+                                ComponentId: !Ref "ComponentId"
+                                ReportsTableName: "#{Deploy:Database.ReportsTableName}"
+                                ReportsTableArn: "#{Deploy:Database.ReportsTableArn}"
+                                FetcherLambdaArn: "#{Deploy:Fetcher.LambdaArn}"
+                        Test:
+                            ActionType: "CodeBuild"
+                            Configuration:
+                                ProjectName: "#{Integration:Provision.BuildProjectName}"
+                            InputArtifacts:
+                                - "checkout"
+                -
+                    Name: "Promote"
+                    Condition: "HasNextStage"
+                    Actions:
+                        Checkout:
+                            ActionType: "S3Promote"
+                            Source: "Checkout:Checkout"
+                            Bucket:
+                                "Fn::ImportValue": !Sub "${ProjectKey}:${ProjectVersion}:infrastructure:next-stage-artifacts-bucket:name"
+
+    TriggerRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            AssumeRolePolicyDocument:
+                -
+                    Action:
+                        - "sts:AssumeRole"
+                    Effect: "Allow"
+                    Principal:
+                        Service:
+                            - "events.amazonaws.com"
+            Policies:
+                AllowStartingPipeline:
+                    -
+                        Action:
+                            - "codepipeline:StartPipelineExecution"
+                        Effect: "Allow"
+                        Resource:
+                            - !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${DeployPipeline}"
+
+    TriggerRule:
+        Type: "AWS::Events::Rule"
+        Properties:
+            EventPattern:
+                source:
+                    - "aws.s3"
+                detail-type:
+                    - "Object Created"
+                detail:
+                    bucket:
+                        name:
+                            - !ImportValue "root:v1:codepipeline:artifacts-bucket:name"
+                    object:
+                        key:
+                            - !Sub "${ComponentId}/checkout.zip"
+            State: "ENABLED"
+            Targets:
+                -
+                    Arn: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${DeployPipeline}"
+                    Id: "pipeline"
+                    RoleArn: !GetAtt "TriggerRole.Arn"

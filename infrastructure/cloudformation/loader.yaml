@@ -1,0 +1,89 @@
+##
+# This file is part of the IVMS Online.
+#
+# @copyright 2024 © by Rafał Wrzeszcz - Wrzasq.pl.
+##
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+Transform:
+    - "WrzasqPlCformMacro"
+    - "AWS::Serverless-2016-10-31"
+
+Parameters:
+    ProjectKey:
+        Type: "String"
+
+    ProjectVersion:
+        Type: "String"
+
+    ReleaseVersion:
+        Type: "String"
+
+    ReportsTableName:
+        Type: "String"
+
+    ReportsTableArn:
+        Type: "String"
+
+Resources:
+    DeadLetterQueue:
+        Type: "AWS::SQS::Queue"
+        Properties:
+            MessageRetentionPeriod: 1209600
+
+    Loader:
+        Type: "AWS::Serverless::Function"
+        Properties:
+            Runtime: "provided.al2023"
+            CodeUri:
+                Bucket: "chilldev-repository"
+                Key: !Sub "sam/ivms-online/ivms-reports-aggregator/${ReleaseVersion}/ivms-reports-aggregator.zip"
+            Handler: "reports:load"
+            MemorySize: 768
+            Environment:
+                Variables:
+                    RUST_LOG: "info"
+                    REPORTS_TABLE: !Ref "ReportsTableName"
+            Timeout: 120
+            Tracing: "Active"
+            Policies:
+                -
+                    Version: "2012-10-17"
+                    Statement:
+                        -
+                            Action:
+                                - "dynamodb:BatchWriteItem"
+                            Effect: "Allow"
+                            Resource:
+                                - !Ref "ReportsTableArn"
+                -
+                    "Fn::ImportValue": !Sub "${ProjectKey}:${ProjectVersion}:ivms-data-aggregator:UploadReadPolicy:Arn"
+            Events:
+                UploadNotification:
+                    Type: "SNS"
+                    Properties:
+                        Topic:
+                            "Fn::ImportValue": !Sub "${ProjectKey}:${ProjectVersion}:ivms-data-aggregator:UploadNotificationsTopic:Arn"
+            DeadLetterQueue:
+                Type: "SQS"
+                TargetArn: !GetAtt "DeadLetterQueue.Arn"
+            LogsRetentionInDays: 14
+
+    DeadLetterQueueAlarm:
+        Type: "AWS::CloudWatch::Alarm"
+        Properties:
+            Namespace: "AWS/SQS"
+            MetricName: "ApproximateNumberOfMessagesVisible"
+            Dimensions:
+                -
+                    Name: "QueueName"
+                    Value: !GetAtt "DeadLetterQueue.QueueName"
+            Statistic: "Sum"
+            ComparisonOperator: "GreaterThanThreshold"
+            Threshold: 0
+            EvaluationPeriods: 1
+            Period: 300
+            AlarmActions:
+                - !ImportValue "root:v1:topic:alarms"
+            TreatMissingData: "notBreaching"

@@ -1,0 +1,109 @@
+##
+# This file is part of the IVMS Online.
+#
+# @copyright 2024 © by Rafał Wrzeszcz - Wrzasq.pl.
+##
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+Transform:
+    - "WrzasqPlCformMacro"
+
+Parameters:
+    ProjectKey:
+        Type: "String"
+
+    ProjectVersion:
+        Type: "String"
+
+    ComponentId:
+        Type: "String"
+
+    ReportsTableName:
+        Type: "String"
+
+    ReportsTableArn:
+        Type: "String"
+
+    FetcherLambdaArn:
+        Type: "String"
+
+Resources:
+    IntegrationProjectRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            AssumeRolePolicyDocument:
+                -
+                    Action:
+                        - "sts:AssumeRole"
+                    Effect: "Allow"
+                    Principal:
+                        Service:
+                            - "codebuild.amazonaws.com"
+            ManagedPolicyArns:
+                - !ImportValue "root:v1:policy:cloudwatch-create-v2"
+                - !ImportValue "root:v1:codepipeline:artifacts-policy:arn"
+            Policies:
+                AllowLoggingToCloudWatchLogs:
+                    -
+                        Action:
+                            - "logs:CreateLogStream"
+                            - "logs:PutLogEvents"
+                        Effect: "Allow"
+                        Resource:
+                            - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
+                AllowS3CacheStorage:
+                    -
+                        Action:
+                            - "s3:GetObject"
+                            - "s3:PutObject"
+                        Effect: "Allow"
+                        Resource:
+                            - !Sub "arn:aws:s3:::${Import:root:v1:codebuild:cache-bucket:name}/${ComponentId}/integrations/*"
+                AllowS3StorageAccess:
+                    -
+                        Action:
+                            - "s3:DeleteObject"
+                            - "s3:PutObject"
+                        Effect: "Allow"
+                        Resource:
+                            -
+                                "Fn::Sun":
+                                    - "${UploadBucketArn}/*"
+                                    -
+                                        UploadBucketArn:
+                                            "Fn::ImportValue": !Sub "${ProjectKey}:${ProjectVersion}:ivms-data-aggregator:UploadBucket:Arn"
+                AllowDynamoDbAccess:
+                    -
+                        Action:
+                            - "dynamodb:DeleteItem"
+                            - "dynamodb:GetItem"
+                            - "dynamodb:PutItem"
+                        Effect: "Allow"
+                        Resource:
+                            - !Ref "ReportsTableArn"
+                AllowInvokingLambdas:
+                    -
+                        Action:
+                            - "lambda:InvokeFunction"
+                        Effect: "Allow"
+                        Resource:
+                            - !Ref "FetcherLambdaArn"
+
+    IntegrationBuildProject:
+        Type: "AWS::CodeBuild::Project"
+        Properties:
+            ServiceRole: !Ref "IntegrationProjectRole"
+            Environment:
+                Image: "rafalwrzeszczwrzasqpl/build-rust:nightly-v0.2.1"
+                ComputeType: "BUILD_GENERAL1_MEDIUM"
+                EnvironmentVariables:
+                    UPLOAD_BUCKET:
+                        "Fn::ImportValue": !Sub "${ProjectKey}:${ProjectVersion}:ivms-data-aggregator:UploadBucket:Name"
+                    REPORTS_TABLE: !Ref "ReportsTableName"
+                    FETCHER_LAMBDA: !Ref "FetcherLambdaArn"
+            Cache: !Sub "${Import:root:v1:codebuild:cache-bucket:name}/${ComponentId}/integrations"
+
+Outputs:
+    BuildProjectName:
+        Value: !Ref "IntegrationBuildProject"

@@ -1,0 +1,56 @@
+##
+# This file is part of the IVMS Online.
+#
+# @copyright 2024 © by Rafał Wrzeszcz - Wrzasq.pl.
+##
+
+[package]
+name = "ivms-reports-aggregator"
+version = "0.0.1"
+edition = "2021"
+repository = "https://github.com/ivms-online/ivms-reports-aggregator"
+authors = [
+    "Rafał Wrzeszcz <rafal.wrzeszcz@wrzasq.pl>"
+]
+
+[dependencies]
+async_zip = { version = "0.0.16", features = ["deflate", "tokio"] }
+aws_lambda_events = { version = "0.15.0", default-features = false, features = ["s3", "sns"] }
+aws-config = "1.1.7"
+aws-sdk-dynamodb = "1.16.1"
+aws-sdk-s3 = "1.17.0"
+aws-smithy-runtime-api = "1.1.7"
+aws-smithy-types = "1.1.7"
+chrono = { version = "0.4.35", default-features = false, features = ["clock", "serde"] }
+futures = "0.3.30"
+lambda_runtime = "0.10.0"
+lazy-regex = "3.1.0"
+log = "0.4.21"
+serde = { version = "1.0.197", features = ["derive"] }
+serde_dynamo = { version = "4.2.13", features = ["aws-sdk-dynamodb+1"] }
+serde_json = "1.0.114"
+thiserror = "1.0.57"
+tokio = { version = "1.36.0", features = ["macros"] }
+urlencoding = "2.1.3"
+uuid = { version = "1.7.0", features = ["serde", "v4"] }
+wrzasqpl-commons-aws = "3.4.6"
+
+[dev-dependencies]
+aws-sdk-lambda = "1.15.1"
+chrono = { version = "0.4.35", default-features = false, features = ["clock", "serde"] }
+cucumber = "0.20.2"
+test-context = "0.3.0"
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+harness = false
+
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+panic = "abort"
