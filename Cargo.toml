@@ -6,7 +6,7 @@
 
 [package]
 name = "ivms-reports-aggregator"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 repository = "https://github.com/ivms-online/ivms-reports-aggregator"
 authors = [
