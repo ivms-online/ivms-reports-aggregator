@@ -18,7 +18,7 @@ async_zip = { version = "0.0.16", features = ["deflate", "tokio"] }
 aws_lambda_events = { version = "0.15.0", default-features = false, features = ["s3", "sns"] }
 aws-config = "1.1.7"
 aws-sdk-dynamodb = "1.16.1"
-aws-sdk-s3 = "1.17.0"
+aws-sdk-s3 = "1.20.0"
 aws-smithy-runtime-api = "1.1.7"
 aws-smithy-types = "1.1.7"
 chrono = { version = "0.4.35", default-features = false, features = ["clock", "serde"] }
