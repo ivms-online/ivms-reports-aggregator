@@ -28,7 +28,7 @@ lazy-regex = "3.1.0"
 log = "0.4.21"
 serde = { version = "1.0.197", features = ["derive"] }
 serde_dynamo = { version = "4.2.13", features = ["aws-sdk-dynamodb+1"] }
-serde_json = "1.0.114"
+serde_json = "1.0.115"
 thiserror = "1.0.57"
 tokio = { version = "1.36.0", features = ["macros"] }
 urlencoding = "2.1.3"
