@@ -21,7 +21,7 @@ aws-sdk-dynamodb = "1.16.1"
 aws-sdk-s3 = "1.17.0"
 aws-smithy-runtime-api = "1.1.7"
 aws-smithy-types = "1.1.7"
-chrono = { version = "0.4.35", default-features = false, features = ["clock", "serde"] }
+chrono = { version = "0.4.37", default-features = false, features = ["clock", "serde"] }
 futures = "0.3.30"
 lambda_runtime = "0.10.0"
 lazy-regex = "3.1.0"
@@ -37,7 +37,7 @@ wrzasqpl-commons-aws = "3.4.6"
 
 [dev-dependencies]
 aws-sdk-lambda = "1.15.1"
-chrono = { version = "0.4.35", default-features = false, features = ["clock", "serde"] }
+chrono = { version = "0.4.37", default-features = false, features = ["clock", "serde"] }
 cucumber = "0.20.2"
 test-context = "0.3.0"
 
